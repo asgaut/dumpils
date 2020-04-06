@@ -19,35 +19,61 @@ func iqToComplex128(input []byte, output []complex128) {
 }
 
 // mult calculates p = f1 * f2. The slices must be
-// preallocated and have the same length.
+// preallocated and have len(f1) <= len(f2) and len(f1) <= len(p)
 func mult(f1, f2, p []complex128) {
-	for idx := range p {
+	for idx := range f1 {
 		p[idx] = f1[idx] * f2[idx]
 	}
 }
 
-func abs(arr []complex128, res []complex128) {
-	for idx := range res {
-		res[idx] = complex(cmplx.Abs(arr[idx]), 0)
+// abs sets the real(out) to the absolute value of the input and imag(out) to zero
+func abs(in []complex128, out []complex128) {
+	for i := range in {
+		out[i] = complex(cmplx.Abs(in[i]), 0)
 	}
 }
 
-func initNCO(f float64, fs float64, n int) []complex128 {
+// newNCO returns 'n' unity vectors rotating counter-clockwise at frequency 'f', sampled at frequency 'fs'
+func newNCO(f float64, fs float64, n int) []complex128 {
 	nco := make([]complex128, n)
-	for idx := range nco {
-		nco[idx] = complex128(cmplx.Exp(complex(0, 2*math.Pi*f*float64(idx)/fs)))
+	for i := range nco {
+		nco[i] = complex128(cmplx.Exp(complex(0, 2*math.Pi*f*float64(i)/fs)))
 	}
 	return nco
 }
 
+const history = 3 // must be >= the order of the IIR filter
+
+func lowpass(in, out []complex128) {
+	// 3th order Chebychev Type II (IIR) filter, coeffs normalized (a0 = 1)
+	// Filter design with scipy: b, a = signal.cheby2(order=3, rs=60, 25e3/(1310720/2), 'lowpass')
+	// y[n] = b[0]*x[n] + b[1]*x[n-1] + b[2]*x[n-2] + b[3]*x[n-3] - a[1]*y[n-1] - a[2]*y[n-2] - a[3]*y[n-3]
+	b0, b1, b2, b3 := 0.00017744+0i, -0.00017405+0i, -0.00017405+0i, 0.00017744+0i
+	a1, a2, a3 := -2.96202704+0i, 2.92477167+0i, -0.96273785+0i
+	for n := history; n < len(in); n = n + 1 {
+		out[n] = b0*in[n] + b1*in[n-1] + b2*in[n-2] + b3*in[n-3] - a1*out[n-1] - a2*out[n-2] - a3*out[n-3]
+	}
+
+	// Copy the last 'history' samples from from the end to the beginning of the 'in' and 'out' buffers.
+	// This makes the previous input and output values available in the for loop above.
+	src := len(out) - history
+	dst := 0
+	for src < len(out) {
+		out[dst] = out[src]
+		in[dst] = in[src]
+		src = src + 1
+		dst = dst + 1
+	}
+}
+
 // Demodulator contains preallocated buffers and cached data for the demodulator
 type Demodulator struct {
-	n       int
-	input   []byte
-	iqData  []complex128
-	fftData []complex128
-	ncoData []complex128
-	fft     fft.FFT
+	n             int
+	iqData        []complex128
+	lpfIn, lpfOut []complex128
+	fftData       []complex128
+	nco           []complex128
+	fft           fft.FFT
 }
 
 // NewDemodulator creates a Demodulator
@@ -58,20 +84,24 @@ func NewDemodulator(channelOffset float64, fs float64) *Demodulator {
 		log.Fatal("Error init FFT:", err)
 	}
 	return &Demodulator{
-		//input:   make([]byte, n*2),
 		iqData:  make([]complex128, n),
+		lpfIn:   make([]complex128, n+history),
+		lpfOut:  make([]complex128, n+history),
 		fftData: make([]complex128, n),
-		ncoData: initNCO(-channelOffset, fs, n),
+		nco:     newNCO(-channelOffset, fs, n),
 		fft:     f,
+		n:       n,
 	}
 }
 
-// Process input samples and calculate ILS measurements
+// Process input samples and calculate ILS measurements.
+// The 'input' time period must be equal to 0.1 seconds.
 func (d *Demodulator) Process(input []byte) (power, ddm, sdm, ident float64) {
 	iqToComplex128(input, d.iqData)
-	mult(d.iqData, d.ncoData, d.fftData)
-	// Add channel lowpass filter here
-	abs(d.fftData, d.fftData) // Demodulate the AM signal
+	mult(d.iqData, d.nco, d.lpfIn[history:history+d.n])
+	lowpass(d.lpfIn, d.lpfOut)
+	// TODO: subsample lpfOut here?
+	abs(d.lpfOut[history:history+d.n], d.fftData) // Demodulate the AM signal
 	s := d.fft.Transform(d.fftData)
 	carrier := cmplx.Abs(s[0])
 	mod150 := (cmplx.Abs(s[15]) + cmplx.Abs(s[len(s)-15])) / carrier * 100
@@ -80,6 +110,6 @@ func (d *Demodulator) Process(input []byte) (power, ddm, sdm, ident float64) {
 	sdm = (mod150 + mod90)
 	ident = (cmplx.Abs(s[102]) + cmplx.Abs(s[len(s)-102])) / carrier * 100
 	carrier = carrier / float64(len(s))
-	power = 20 * math.Log10(carrier) // Carrier power in dB
+	power = 20 * math.Log10(carrier) // Carrier power in dBFS
 	return
 }
