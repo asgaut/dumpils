@@ -34,10 +34,10 @@ func abs(in []complex128, out []complex128) {
 }
 
 // newNCO returns 'n' unity vectors rotating counter-clockwise at frequency 'f', sampled at frequency 'fs'
-func newNCO(f float64, fs float64, n int) []complex128 {
+func newNCO(w float64, n int) []complex128 {
 	nco := make([]complex128, n)
 	for i := range nco {
-		nco[i] = complex128(cmplx.Exp(complex(0, 2*math.Pi*f*float64(i)/fs)))
+		nco[i] = complex128(cmplx.Exp(complex(0, 2*math.Pi*w*float64(i))))
 	}
 	return nco
 }
@@ -77,20 +77,19 @@ type Demodulator struct {
 }
 
 // NewDemodulator creates a Demodulator
-func NewDemodulator(channelOffset float64, fs float64) *Demodulator {
-	n := int(fs / 10)
-	f, err := fft.New(n)
+func NewDemodulator(w float64, numSamples int) *Demodulator {
+	f, err := fft.New(numSamples)
 	if err != nil {
 		log.Fatal("Error init FFT:", err)
 	}
 	return &Demodulator{
-		iqData:  make([]complex128, n),
-		lpfIn:   make([]complex128, n+history),
-		lpfOut:  make([]complex128, n+history),
-		fftData: make([]complex128, n),
-		nco:     newNCO(-channelOffset, fs, n),
+		iqData:  make([]complex128, numSamples),
+		lpfIn:   make([]complex128, numSamples+history),
+		lpfOut:  make([]complex128, numSamples+history),
+		fftData: make([]complex128, numSamples),
+		nco:     newNCO(-w, numSamples),
 		fft:     f,
-		n:       n,
+		n:       numSamples,
 	}
 }
 
@@ -99,7 +98,8 @@ func NewDemodulator(channelOffset float64, fs float64) *Demodulator {
 func (d *Demodulator) Process(input []byte) (power, ddm, sdm, ident float64) {
 	iqToComplex128(input, d.iqData)
 	mult(d.iqData, d.nco, d.lpfIn[history:history+d.n])
-	lowpass(d.lpfIn, d.lpfOut)
+	//lowpass(d.lpfIn, d.lpfOut)
+	mult(d.iqData, d.nco, d.lpfOut[history:history+d.n])
 	// TODO: subsample lpfOut here?
 	abs(d.lpfOut[history:history+d.n], d.fftData) // Demodulate the AM signal
 	s := d.fft.Transform(d.fftData)
@@ -109,6 +109,44 @@ func (d *Demodulator) Process(input []byte) (power, ddm, sdm, ident float64) {
 	ddm = (mod150 - mod90) // 150 Hz dominance (DDM > 0): Fly UP/LEFT
 	sdm = (mod150 + mod90)
 	ident = (cmplx.Abs(s[102]) + cmplx.Abs(s[len(s)-102])) / carrier * 100
+	carrier = carrier / float64(len(s))
+	power = 20 * math.Log10(carrier) // Carrier power in dBFS
+	return
+}
+
+// Process200ms
+func (d *Demodulator) Process200ms(input []byte) (power, ddm, sdm, ident float64) {
+	iqToComplex128(input, d.iqData)
+	mult(d.iqData, d.nco, d.lpfIn[history:history+d.n])
+	//lowpass(d.lpfIn, d.lpfOut)
+	mult(d.iqData, d.nco, d.lpfOut[history:history+d.n])
+	// TODO: subsample lpfOut here?
+	abs(d.lpfOut[history:history+d.n], d.fftData) // Demodulate the AM signal
+	s := d.fft.Transform(d.fftData)
+	carrier := cmplx.Abs(s[0])
+	mod150 := (cmplx.Abs(s[15*2]) + cmplx.Abs(s[len(s)-15*2])) / carrier * 100
+	mod90 := (cmplx.Abs(s[9*2]) + cmplx.Abs(s[len(s)-9*2])) / carrier * 100
+	ddm = (mod150 - mod90) // 150 Hz dominance (DDM > 0): Fly UP/LEFT
+	sdm = (mod150 + mod90)
+	ident = (cmplx.Abs(s[102*2]) + cmplx.Abs(s[len(s)-102*2])) / carrier * 100
+	carrier = carrier / float64(len(s))
+	power = 20 * math.Log10(carrier) // Carrier power in dBFS
+	return
+}
+
+// Process30ms of data
+func (d *Demodulator) Process30ms(input []byte) (power, ddm, sdm, ident float64) {
+	iqToComplex128(input, d.iqData)
+	mult(d.iqData, d.nco, d.lpfIn[history:history+d.n])
+	lowpass(d.lpfIn, d.lpfOut)
+	abs(d.lpfOut[history:history+d.n], d.fftData) // Demodulate the AM signal
+	s := d.fft.Transform(d.fftData)
+	carrier := cmplx.Abs(s[0])
+	mod150 := (cmplx.Abs(s[5]) + cmplx.Abs(s[len(s)-5])) / carrier * 100
+	mod90 := (cmplx.Abs(s[3]) + cmplx.Abs(s[len(s)-3])) / carrier * 100
+	ddm = (mod150 - mod90) // 150 Hz dominance (DDM > 0): Fly UP/LEFT
+	sdm = (mod150 + mod90)
+	ident = (cmplx.Abs(s[34]) + cmplx.Abs(s[len(s)-34])) / carrier * 100
 	carrier = carrier / float64(len(s))
 	power = 20 * math.Log10(carrier) // Carrier power in dBFS
 	return

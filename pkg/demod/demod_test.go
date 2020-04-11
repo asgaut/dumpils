@@ -29,8 +29,8 @@ func TestDemod1(t *testing.T) {
 	n := int(fs / 10)
 	iqData := make([]complex128, n)
 	iqRawData := make([]byte, int(fs/10)<<1)
-	nco := newNCO(channelOffset, fs, n)
-	demodulator := NewDemodulator(channelOffset, fs)
+	nco := newNCO(channelOffset/fs, n)
+	demodulator := NewDemodulator(channelOffset, n)
 
 	T := 1 / fs
 	var time float64
@@ -69,7 +69,7 @@ func TestDemod2(t *testing.T) {
 	iqRawData := make([]byte, int(fs/10)<<1)
 	complex128ToIQRawData(iqData, iqRawData)
 
-	demodulator := NewDemodulator(channelOffset, fs)
+	demodulator := NewDemodulator(channelOffset/fs, n)
 	p, d, s, i := demodulator.Process(iqRawData)
 	t.Logf("RF:%.1f dBFS; DDM:%.3f%%; SDM:%.3f%%; Ident:%.3f%%\n", p, d, s, i)
 }
@@ -81,8 +81,8 @@ func TestDemod3(t *testing.T) {
 	n := int(fs / 10)
 	iqData := make([]complex128, n)
 	iqRawData := make([]byte, int(fs/10)<<1)
-	nco := newNCO(channelOffset+1, fs, n) // add a litte frequency error here so we don't get coherent demod
-	demodulator := NewDemodulator(channelOffset, fs)
+	nco := newNCO(channelOffset/fs+1, n) // add a litte frequency error here so we don't get coherent demod
+	demodulator := NewDemodulator(channelOffset/fs, n)
 
 	T := 1 / fs
 	var time float64
@@ -118,7 +118,7 @@ func BenchmarkDemod(b *testing.B) {
 	for i := range iqRawData {
 		iqRawData[i] = 0
 	}
-	demodulator := NewDemodulator(channelOffset, fs)
+	demodulator := NewDemodulator(channelOffset/fs, int(fs/10))
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		p, d, s, i = demodulator.Process(iqRawData)

@@ -6,9 +6,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"time"
 
-	"github.com/asgaut/dumpils/demod"
+	"github.com/asgaut/dumpils/pkg/demod"
 	"github.com/bemasher/rtltcp"
 )
 
@@ -25,11 +24,11 @@ func main() {
 
 	f := 110.1e6
 	channelOffset := 200.0e3
-	fs := 10.0 * float64(2<<16) // 1310620.0 Hz
+	fs := 10.0 * float64(1<<17) // 1310720.0 Hz
 
 	sdr.SetCenterFreq(uint32(f - channelOffset)) // offset tuning
 	sdr.SetSampleRate(uint32(fs))
-	sdr.SetGain(40)
+	sdr.SetGain(400) // 40 dB
 
 	in, out := io.Pipe()
 	go func() {
@@ -40,20 +39,18 @@ func main() {
 
 	iqRawData := make([]byte, int(fs/10)<<1)
 
-	periodicTick := time.Tick(time.Second)
-
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, os.Kill, os.Interrupt)
 
-	demodulator := demod.NewDemodulator(channelOffset, fs)
+	demodulator := demod.NewDemodulator(channelOffset, int(fs/10))
+
+	fmt.Printf("RF(dbFS);DDM(uA);SDM(%%);Ident\n")
 
 Loop:
 	for {
 		select {
 		case <-sigint:
 			break Loop
-		case <-periodicTick:
-			//break Loop
 		default:
 			_, err := io.ReadFull(in, iqRawData)
 			if err != nil {
@@ -66,9 +63,9 @@ Loop:
 			} else {
 				d *= 150 / 15.5
 			}
-			fmt.Printf("RF(db): %5.1f  DDM(uA):%7.2f  SDM(%%): %6.2f  Ident(%%): %6.2f\n", p, d, s, i)
+			fmt.Printf("%.1f;%.3f;%.3f;%.3f\n", p, d, s, i)
 		}
 	}
 
-	fmt.Printf("Exiting.")
+	fmt.Printf("Exiting on Ctrl-C.")
 }
