@@ -1,0 +1,2 @@
+# ignore the webui.go due to its size (>300 kB) and gzipped contents.
+webui.go
