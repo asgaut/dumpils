@@ -116,10 +116,10 @@ func (d *Demodulator) Process(input []byte) {
 	// (our signals of interest are integer periodic in the FFT width)
 	d.fft1.Transform(d.FFT1)
 	binFreqWidth := d.fs / float64(d.n)
-	passLow, passHigh := int((200e3-5e3)/binFreqWidth), int((200e3+5e3)/binFreqWidth)
+	passLow, passHigh := int((200e3-10e3)/binFreqWidth), int((200e3+10e3)/binFreqWidth)
 	copy(d.IFFT[0:passLow], d.Zero[0:passLow])
-	copy(d.IFFT[passLow:passHigh], d.FFT1[passLow:passHigh])
-	copy(d.IFFT[passHigh:], d.Zero[passHigh:])
+	copy(d.IFFT[passLow:passHigh+1], d.FFT1[passLow:passHigh])
+	copy(d.IFFT[passHigh+1:], d.Zero[passHigh+1:])
 	d.fft1.Inverse(d.IFFT)
 
 	// Downsample and demodulate the AM signal
