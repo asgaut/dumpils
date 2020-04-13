@@ -2,6 +2,7 @@ import Vue from "vue";
 import VueRouter from "vue-router";
 import Home from "../views/Home.vue";
 import Spectrum from "../views/Spectrum.vue";
+import Generator from "../views/Generator.vue";
 
 Vue.use(VueRouter);
 
@@ -17,6 +18,10 @@ const routes = [
     component: Spectrum
   },
   {
+    path: "/generator",
+    name: "Generator",
+    component: Generator
+  }, {
     path: "/about",
     name: "About",
     // route level code-splitting

@@ -18,6 +18,7 @@ type processor struct {
 	mu          sync.Mutex
 	demodulator *demod2.Demodulator
 	sdr         rtltcp.SDR
+	iqRawData   []byte
 }
 
 func (p *processor) setCenterFreq(freq uint32) (err error) {
@@ -41,7 +42,7 @@ func (p *processor) sdrProcess(ctx context.Context, address string, fs float64) 
 	p.sdr.SetSampleRate(uint32(fs))
 	p.sdr.SetGain(40) // must set gain to avoid automatic setting
 
-	iqRawData := make([]byte, int(fs/10)*2)
+	p.iqRawData = make([]byte, int(fs/10)*2)
 	p.demodulator = demod2.NewDemodulator(fs, int(fs/10))
 
 	go func() {
@@ -52,13 +53,13 @@ func (p *processor) sdrProcess(ctx context.Context, address string, fs float64) 
 	}()
 
 	for {
-		_, err := io.ReadFull(p.sdr, iqRawData)
+		_, err := io.ReadFull(p.sdr, p.iqRawData)
 		if err != nil {
 			log.Println("Error reading from SDR", err)
 			return err
 		}
 		p.mu.Lock()
-		p.demodulator.Process(iqRawData)
+		p.demodulator.Process(p.iqRawData)
 		p.mu.Unlock()
 	}
 }
@@ -70,15 +71,15 @@ func (p *processor) fileProcess(ctx context.Context, filename string, fs float64
 	}
 	defer file.Close()
 
-	iqRawData := make([]byte, int(fs/10)*2)
+	p.iqRawData = make([]byte, int(fs/10)*2)
 	p.demodulator = demod2.NewDemodulator(fs, int(fs/10))
 
 	size, _ := file.Seek(0, io.SeekEnd)
 	file.Seek(0, io.SeekStart)
-	if size < int64(len(iqRawData)) {
-		return fmt.Errorf("file size must be at least %d bytes", len(iqRawData))
+	if size < int64(len(p.iqRawData)) {
+		return fmt.Errorf("file size must be at least %d bytes", len(p.iqRawData))
 	}
-	chunks := int(size / int64(len(iqRawData)))
+	chunks := int(size / int64(len(p.iqRawData)))
 
 	go func() {
 		<-ctx.Done()
@@ -87,10 +88,10 @@ func (p *processor) fileProcess(ctx context.Context, filename string, fs float64
 		file.Close()
 	}()
 
-	loopDuration := time.Duration(int64(time.Second) * int64(len(iqRawData)) / int64(fs))
+	loopDuration := time.Duration(int64(time.Second) * int64(len(p.iqRawData)) / int64(fs))
 	chunksRead := 0
 	for {
-		_, err := io.ReadFull(file, iqRawData)
+		_, err := io.ReadFull(file, p.iqRawData)
 		if err != nil {
 			return nil
 		}
@@ -100,7 +101,23 @@ func (p *processor) fileProcess(ctx context.Context, filename string, fs float64
 			file.Seek(0, io.SeekStart)
 		}
 		p.mu.Lock()
-		p.demodulator.Process(iqRawData)
+		p.demodulator.Process(p.iqRawData)
+		p.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			break
+		case <-time.After(loopDuration):
+		}
+	}
+}
+
+func (p *processor) simProcess(ctx context.Context, fs float64) error {
+	p.iqRawData = make([]byte, int(fs/10)*2)
+	p.demodulator = demod2.NewDemodulator(fs, int(fs/10))
+	loopDuration := time.Duration(int64(time.Second) * int64(len(p.iqRawData)) / int64(fs))
+	for {
+		p.mu.Lock()
+		p.demodulator.Process(p.iqRawData)
 		p.mu.Unlock()
 		select {
 		case <-ctx.Done():

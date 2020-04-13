@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -43,6 +44,7 @@ func (s *httpapi) ServeAPI(ctx context.Context, listenAddr string) error {
 	router.Handle("/spectrum", spectrum(s))
 	router.Handle("/measurements", meas(s))
 	router.Handle("/channel", channel(s))
+	router.Handle("/samples", samples(s))
 
 	server := &http.Server{
 		Addr:         listenAddr,
@@ -163,6 +165,45 @@ func channel(s *httpapi) http.Handler {
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(buf)
+	})
+}
+
+func samples(s *httpapi) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, PUT") // POST, GET, OPTIONS, PUT, DELETE
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		source, ok := r.URL.Query()["source"]
+		if !ok || len(source) != 1 {
+			http.Error(w, "'source' argument missing", http.StatusBadRequest)
+			return
+		}
+		p, ok := s.processors[source[0]]
+		if !ok {
+			http.Error(w, fmt.Sprintf("'%s' input not defined", source[0]), http.StatusBadRequest)
+			return
+		}
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		if r.Method == http.MethodGet {
+			//w.Header().Set("Content-Type", "application/octet-binary")
+		}
+		if r.Method == http.MethodPut {
+			if r.Header.Get("Content-Type") != "application/octet-binary" {
+				http.Error(w, "Invalid Content-Type", http.StatusBadRequest)
+				return
+			}
+			if r.ContentLength != int64(len(p.iqRawData)) {
+				http.Error(w, fmt.Sprintf("Content-Length must be %d bytes", len(p.iqRawData)), http.StatusBadRequest)
+				return
+			}
+			_, err := io.ReadFull(r.Body, p.iqRawData)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
+		}
 	})
 }
 

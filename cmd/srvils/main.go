@@ -59,15 +59,19 @@ func main() {
 			defer wg.Done()
 			fmt.Printf("Starting processor for %s\n", src)
 			err := error(nil)
-			if strings.ContainsAny(dataSource[src], ":") {
-				err = processors[src].sdrProcess(ctx, dataSource[src], fs)
+			if dataSource[src] != "" {
+				if strings.ContainsAny(dataSource[src], ":") {
+					err = processors[src].sdrProcess(ctx, dataSource[src], fs)
+				} else {
+					err = processors[src].fileProcess(ctx, dataSource[src], fs)
+				}
 			} else {
-				err = processors[src].fileProcess(ctx, dataSource[src], fs)
+				err = processors[src].simProcess(ctx, fs)
 			}
 			if err != nil {
 				log.Printf("Error in processor '%s': %v\n", src, err)
-				cancel()
 			}
+			cancel()
 		}(key)
 	}
 

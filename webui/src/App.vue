@@ -3,6 +3,7 @@
     <div id="nav">
       <router-link to="/">Home</router-link>&nbsp;|
       <router-link to="/spectrum">Spectrum</router-link>&nbsp;|
+      <router-link to="/generator">Generator</router-link>&nbsp;|
       <router-link to="/about">About</router-link>
     </div>
     <router-view />
