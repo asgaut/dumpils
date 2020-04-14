@@ -1,6 +1,7 @@
 <template>
   <div>
     <div style="text-align: center;">
+      <br />
       <label for="source">Input:</label>
       <select id="source" v-model="source">
         <option value="loc">LOC</option>

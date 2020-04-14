@@ -11,24 +11,35 @@
 </template>
 
 <style>
+/* https://github.com/microsoft/vscode/extensions/theme-defaults/themes/dark_defaults.json */
+
+body {
+  background-color: #1e1e1e;
+}
+
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #2c3e50;
+  color: #bbbbbb;
 }
 
 #nav {
   text-align: center;
   padding: 30px;
+  background: #252526;
 }
 
 #nav a {
   font-weight: bold;
-  color: #2c3e50;
+  color: #cccccc;
 }
 
-#nav a.router-link-exact-active {
-  color: #42b983;
+a {
+  color: #d4d4d4;
+}
+
+a:visited {
+  color: #bbbbbb;
 }
 </style>

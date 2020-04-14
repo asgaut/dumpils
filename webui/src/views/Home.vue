@@ -9,7 +9,7 @@
           :gs-flag="gsFlag"
         />
         <div
-          style="text-align: center; font-size: small"
+          style="text-align: center; font-size: small; cursor: pointer;"
         >{{`Click here to ${showControls?'hide':'show'} the control panel.`}}</div>
       </div>
       <div class="controls" v-show="showControls">
