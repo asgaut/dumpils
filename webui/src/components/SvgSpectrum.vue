@@ -6,7 +6,7 @@
       xmlns:svg="http://www.w3.org/2000/svg"
     >
       <defs>
-        <linearGradient id="linear" x1="0" y1="0" x2="0" y2="800" gradientUnits="userSpaceOnUse">
+        <linearGradient id="linear" x1="0" y1="0" x2="0" y2="1000" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stop-color="#c00" />
           <stop offset="100%" stop-color="#007" />
         </linearGradient>
@@ -14,15 +14,15 @@
       <g>
         <title>Spectrum</title>
         <path id="frame" fill="#222" d="M-1000 -1000 v2000 h2000 v-2000 " />
-        <g v-for="(f, index) in power" v-bind:key="index">
+        <g v-for="(db, index) in power" v-bind:key="index">
           <rect
-            :x="index*binWidth-1000"
-            :y="Math.abs(-(f+10)/totalmax)*1000"
-            :width="binWidth"
-            :height="Math.abs(1+(f+10)/totalmax)*1000"
+            :x="2000*(index<power.length/2?index:(index-power.length))/power.length"
+            :y="1000-(db-dbMin)/(dbMax-dbMin)*1000"
+            :width="2000/power.length"
+            :height="(db-dbMin)/(dbMax-dbMin)*1000"
             fill="url(#linear)"
           >
-            <title>{{f}}</title>
+            <title>{{db}}</title>
           </rect>
         </g>
       </g>
@@ -36,7 +36,8 @@ export default {
   components: {},
   data: function() {
     return {
-      totalmax: 100,
+      dbMin: Number(-100),
+      dbMax: 10, // max is 3.02 dBFS
       power: [0, 0]
     };
   },
@@ -44,11 +45,6 @@ export default {
     url: {
       type: String,
       default: ""
-    }
-  },
-  computed: {
-    binWidth: function() {
-      return 2000 / this.power.length;
     }
   },
   mounted() {
@@ -81,7 +77,6 @@ export default {
           let minBinWidth = 3;
           let downsample = 1;
           let clientWidth = 500;
-          //let downsample = Math.trunc(json.length / this.$refs.spectrum2.clientWidth * minBinWidth);
           if (this.$refs.spectrumdiv) {
             clientWidth = this.$refs.spectrumdiv.clientWidth;
           }
@@ -89,22 +84,22 @@ export default {
             downsample = Math.trunc((json.length / clientWidth) * minBinWidth);
           }
           let reduced = [];
-          let max = -90; // dBFS
           let count = 0;
-          // Normalizes data in dB to be in range -90 to 10
+          let max = -Infinity;
+          // Normalizes data in dB to be in range dbMin to dbMax
           json.forEach(item => {
             count++;
             let v = 20 * Math.log10(item);
-            if (v > 10) v = 10;
+            if (v < this.dBMin) v = this.dbMin;
+            else if (v > this.dbMax) v = this.dbMax;
+            else if (isNaN(v)) v = this.dbMin;
             if (v > max) max = v;
             if (count === downsample) {
               reduced.push(max);
-              //if (max > totalmax) totalmax = max;
-              max = -90; // dBFS
+              max = this.dbMin;
               count = 0;
             }
           });
-          //this.totalmax = totalmax;
           this.power = reduced;
           // Restart timer since fetch was successful
           this.timerData = setInterval(this.updateData, 500);
