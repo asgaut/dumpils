@@ -25,51 +25,33 @@
         <br />
         <input type="checkbox" id="checkbox" v-model="showYChannels" />
         <label for="checkbox">Show Y channels</label>
-        <div class="meas">
-          <div v-if="measurements['loc']" :set="m = measurements['loc']">
-            LOC:
-            <br />
-            <table>
-              <tr>
-                <td>DDM:</td>
-                <td style="text-align:right;">{{(navCurrent).toFixed(1)}}&nbsp;</td>
-                <td>µA</td>
-              </tr>
-              <tr>
-                <td>SDM:</td>
-                <td style="text-align:right;">{{m.sdm.toFixed(1)}}</td>
-                <td>%</td>
-              </tr>
-              <tr>
-                <td>RF:</td>
-                <td style="text-align:right;">{{m.rf.toFixed(1)}}</td>
-                <td>dBFS</td>
-              </tr>
-            </table>
+        <div class="measpanel">
+          <div v-if="measurements['loc']" :set="m = measurements['loc']" class="measgroup">
+            <div class="meashead">Localizer</div>
+            <div>DDM:</div>
+            <div class="meas">{{(navCurrent).toFixed(1)}}</div>
+            <div>µA</div>
+            <div>SDM:</div>
+            <div class="meas">{{m.sdm.toFixed(1)}}</div>
+            <div>%</div>
+            <div>RF:</div>
+            <div class="meas">{{m.rf.toFixed(1)}}</div>
+            <div>dBFS</div>
           </div>
-          <div v-else>LOC: No data</div>
-          <div v-if="measurements['gp']" :set="m = measurements['gp']">
-            GP:
-            <br />
-            <table>
-              <tr>
-                <td>DDM:</td>
-                <td style="text-align:right;">{{(gsCurrent).toFixed(1)}}&nbsp;</td>
-                <td>µA</td>
-              </tr>
-              <tr>
-                <td>SDM:</td>
-                <td style="text-align:right;">{{m.sdm.toFixed(1)}}</td>
-                <td>%</td>
-              </tr>
-              <tr>
-                <td>RF:</td>
-                <td style="text-align:right;">{{m.rf.toFixed(1)}}</td>
-                <td>dBFS</td>
-              </tr>
-            </table>
+          <div v-else class="meashead">Localizer: No data</div>
+          <div v-if="measurements['gp']" :set="m = measurements['gp']" class="measgroup">
+            <div class="meashead">Glidepath</div>
+            <div>DDM:</div>
+            <div class="meas">{{(gsCurrent).toFixed(1)}}</div>
+            <div>µA</div>
+            <div>SDM:</div>
+            <div class="meas">{{m.sdm.toFixed(1)}}</div>
+            <div>%</div>
+            <div>RF:</div>
+            <div class="meas">{{m.rf.toFixed(1)}}</div>
+            <div>dBFS</div>
           </div>
-          <div v-else>GP: No data</div>
+          <div v-else class="meashead">Glidepath: No data</div>
         </div>
       </div>
     </div>
@@ -187,24 +169,45 @@ export default {
   padding: 7px;
 }
 
-.main div {
-  padding: 10px;
+.main {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-gap: 10px;
 }
-.cdi {
-  flex: 2;
-}
+
 .controls {
-  flex: 1;
+  max-width: 300px;
 }
+
+.measpanel {
+  display: grid;
+  grid-gap: 5px;
+}
+
+.measgroup {
+  background-color: black;
+  border-radius: 5px;
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  grid-gap: 2px;
+}
+
+.measgroup .meashead {
+  grid-column: span 3;
+  text-align: center;
+}
+
 .meas {
-  font-size: large;
-  text-align: left;
+  text-align: right;
 }
-@media (min-width: 600px) {
+
+@media only screen and (max-width: 600px) {
   .main {
-    display: flex;
-    border: 1px #ccc solid;
-    justify-content: center;
+    display: inline;
+  }
+  .measpanel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 }
 </style>
