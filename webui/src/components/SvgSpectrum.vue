@@ -22,11 +22,24 @@
             :height="(db-dbMin)/(dbMax-dbMin)*1000"
             fill="url(#linear)"
           >
-            <title>{{db}}</title>
+            <title>{{binLabel(db, index)}}</title>
           </rect>
         </g>
       </g>
     </svg>
+    Span: {{fs}} Hz
+    RBW: {{rbw}} Hz
+    Sweep time: {{sweeptime}} s
+    <br />
+    <label for="displayBW">Display bandwidth (Hz):</label>
+    <input
+      v-model.number="displayBW"
+      type="number"
+      id="displayBW"
+      :min="10*rbw"
+      :max="fs"
+      :step="100*rbw"
+    />
   </div>
 </template>
 
@@ -38,25 +51,94 @@ export default {
     return {
       dbMin: Number(-100),
       dbMax: 10, // max is 3.02 dBFS
-      power: [0, 0]
+      downsample: 0,
+      power: [0, 0],
+      specFull: [],
+      specZoom: [],
+      displayBW: 0,
+      rbw: 0,
+      sweeptime: 0
     };
   },
   props: {
     url: {
       type: String,
       default: ""
-    }
+    },
+    fs: Number(0)
   },
   mounted() {
-    this.updateData();
+    this.timerData = setInterval(this.updateData, 500);
+    this.displayBW = this.fs;
   },
   beforeDestroy() {
     clearInterval(this.timerData);
   },
+  watch: {
+    displayBW: function() {
+      this.redraw();
+    },
+    url: function() {
+      this.timerData = setInterval(this.updateData, 500);
+    },
+    fs: function() {
+      if (this.displayBW > this.fs) {
+        this.displayBW = this.fs;
+      }
+      this.redraw();
+    }
+  },
+  computed: {},
   methods: {
+    binLabel: function(db, index) {
+      if (index > 0) {
+        index =
+          index > this.power.length / 2 ? index - this.power.length : index;
+        return `${index * this.downsample * this.rbw} Hz / ${db.toFixed(1)} dB`;
+      }
+      return `DC: ${db.toFixed(1)} dB`;
+    },
+    redraw: function() {
+      this.sweeptime = this.specFull.length / this.fs;
+      this.rbw = 1 / this.sweeptime;
+      let showBins = Math.trunc(this.displayBW / this.rbw / 2);
+      // keep 'showBins*2' samples of the lowest frequencies
+      this.specZoom = [
+        ...this.specFull.slice(0, showBins),
+        ...this.specFull.slice(-showBins)
+      ];
+      let minBinWidth = 3;
+      let clientWidth = 500;
+      if (this.$refs.spectrumdiv) {
+        clientWidth = this.$refs.spectrumdiv.clientWidth;
+      }
+      this.downsample = 1;
+      if (this.specZoom.length > clientWidth / minBinWidth) {
+        this.downsample = Math.trunc(
+          (this.specZoom.length / clientWidth) * minBinWidth
+        );
+      }
+      let reduced = [];
+      let count = 0;
+      let max = -Infinity;
+      // Normalizes data in dB to be in range dbMin to dbMax
+      this.specZoom.forEach(item => {
+        count++;
+        let v = 20 * Math.log10(item);
+        if (v < this.dBMin) v = this.dbMin;
+        else if (v > this.dbMax) v = this.dbMax;
+        else if (isNaN(v)) v = this.dbMin;
+        if (v > max) max = v;
+        if (count === this.downsample) {
+          reduced.push(max);
+          max = this.dbMin;
+          count = 0;
+        }
+      });
+      this.power = reduced;
+    },
     updateData: function() {
       let a = this.url;
-      //this.displaySampleData = false;
       // Stop timer when doing network IO
       clearInterval(this.timerData);
       if (this.url.length == 0) {
@@ -74,33 +156,8 @@ export default {
       })
         .then(response => response.json())
         .then(json => {
-          let minBinWidth = 3;
-          let downsample = 1;
-          let clientWidth = 500;
-          if (this.$refs.spectrumdiv) {
-            clientWidth = this.$refs.spectrumdiv.clientWidth;
-          }
-          if (json.length > clientWidth / minBinWidth) {
-            downsample = Math.trunc((json.length / clientWidth) * minBinWidth);
-          }
-          let reduced = [];
-          let count = 0;
-          let max = -Infinity;
-          // Normalizes data in dB to be in range dbMin to dbMax
-          json.forEach(item => {
-            count++;
-            let v = 20 * Math.log10(item);
-            if (v < this.dBMin) v = this.dbMin;
-            else if (v > this.dbMax) v = this.dbMax;
-            else if (isNaN(v)) v = this.dbMin;
-            if (v > max) max = v;
-            if (count === downsample) {
-              reduced.push(max);
-              max = this.dbMin;
-              count = 0;
-            }
-          });
-          this.power = reduced;
+          this.specFull = json;
+          this.redraw();
           // Restart timer since fetch was successful
           this.timerData = setInterval(this.updateData, 500);
         })
