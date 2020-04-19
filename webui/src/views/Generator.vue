@@ -66,30 +66,32 @@
         <button v-on:click="ddm2=0;sdm2=40;rf2=0;carrierOffset2=0">Reset test source</button>
       </div>
       <br />
-      <div class="error" v-if="overrange">Overrange ({{overrange}} samples)</div>
+      <div class="error" v-if="overrange">Overrange ({{overrange}} {{$root.sampleCount}} samples)</div>
     </div>
   </div>
 </template>
 
 <script>
-let fs = 1310720;
-let sampleCount = Math.trunc(fs / 10);
-let iqData = new Uint8ClampedArray(sampleCount * 2);
+const fs = 1310720;
+const sampleCount = Math.trunc(fs / 10);
+const iqData = new Uint8ClampedArray(sampleCount * 2);
+
+const generatorGlobalState = {
+  ddm: 0,
+  sdm: 40,
+  rf: 50,
+  carrierOffset: 0,
+  ddm2: 0,
+  sdm2: 40,
+  rf2: 0,
+  carrierOffset2: 0,
+  overrange: 0
+};
 
 export default {
   name: "Generator",
   data: function() {
-    return {
-      ddm: 0,
-      sdm: 40,
-      rf: 50,
-      carrierOffset: 0,
-      ddm2: 0,
-      sdm2: 40,
-      rf2: 0,
-      carrierOffset2: 0,
-      overrange: 0
-    };
+    return generatorGlobalState;
   },
   created: function() {
     this.generate();
@@ -135,7 +137,6 @@ export default {
       // prettier-ignore
       let baseband2 = time => rf2 * (1 + mod902*Math.sin(2*Math.PI*90*time) + mod1502*Math.sin(2*Math.PI*150*time))
       performance.mark("markerNameA");
-      iqData = new Uint8ClampedArray(sampleCount * 2);
       this.overrange = 0;
       for (let i = 0; i < sampleCount; i++) {
         let time = i / fs;

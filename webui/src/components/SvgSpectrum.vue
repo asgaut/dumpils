@@ -30,16 +30,6 @@
     Span: {{fs}} Hz
     RBW: {{rbw}} Hz
     Sweep time: {{sweeptime}} s
-    <br />
-    <label for="displayBW">Display bandwidth (Hz):</label>
-    <input
-      v-model.number="displayBW"
-      type="number"
-      id="displayBW"
-      :min="10*rbw"
-      :max="fs"
-      :step="100*rbw"
-    />
   </div>
 </template>
 
@@ -55,7 +45,6 @@ export default {
       power: [0, 0],
       specFull: [],
       specZoom: [],
-      displayBW: 0,
       rbw: 0,
       sweeptime: 0
     };
@@ -65,11 +54,11 @@ export default {
       type: String,
       default: ""
     },
-    fs: Number(0)
+    fs: Number(0),
+    displayBW: Number(0)
   },
   mounted() {
-    this.timerData = setInterval(this.updateData, 500);
-    this.displayBW = this.fs;
+    this.updateData();
   },
   beforeDestroy() {
     clearInterval(this.timerData);
@@ -79,12 +68,9 @@ export default {
       this.redraw();
     },
     url: function() {
-      this.timerData = setInterval(this.updateData, 500);
+      this.updateData();
     },
     fs: function() {
-      if (this.displayBW > this.fs) {
-        this.displayBW = this.fs;
-      }
       this.redraw();
     }
   },
